@@ -1,1 +1,64 @@
+%% System-Level Simulation: Point-to-Point MIMO-OFDM with Beamforming
+clear; clc;
 
+% 1. Helper Design Specification Parameters (as per your notes 'gc')
+gc = helperDesignSpecParameters; 
+tp.txPower = 9;             % Transmit Power
+tp.txGain = 8;              % Transmit Gain
+tp.mobileAngle = 35;        % Mobile Angle
+tp.interfDistance = 15;     % Interference Distance
+tp.enbGain = 20;            % eNodeB Gain
+tp.interfRange = 9000;      % Interference Range
+tp.steeringAngle = 0;       % Steering Angle
+tp.rxGain = 18.8320;        % Receiver Gain
+numTx = 4;                  % Number of Transmit Elements
+
+%% 2. Transmitter Section
+% Encoder, Scrambler, Modulation, and Steering
+[txBits, snBits, rxSymb] = helperInitialSetup(gc, tp);
+
+% Generate random bits
+txBits = randi([0 1], 1000, 1); 
+
+% Encoding and Scrambling
+coded = encoder(txBits);
+bitsS = scrambler(coded);
+
+% Modulation (e.g., QAM)
+tx = qammod(bitsS, gc.modMode, 'UnitAveragePower', true);
+
+% OFDM Modulation
+txOFDM = ofdmmod(tx, gc.FFTLength, gc.CPLength);
+
+%% 3. Channel and Beamforming
+% Beam Steering Alignment
+steeringAngle = tp.mobileAngle;
+wT = steerigsec(gc, tp, steeringAngle); % Weight vector for steering
+
+% Channel Simulation (Multipath and Fading)
+% Incorporating Path Loss and Interference based on your 'interfRange'
+channel = channelModel(txOFDM, tp.interfRange);
+
+%% 4. Receiver Section
+% Demodulation and Decoding
+rxOFDM = channel; 
+rxSymb = ofdmdemod(rxOFDM, gc.FFTLength, gc.CPLength);
+
+% Equalization
+hd = helperEstimate(rxSymb, gc.numTx);
+rxEq = rxSymb ./ hd;
+
+% Descrambling and Decoding
+rxCoded = descrambler(rxEq);
+rxBits = decoder(rxCoded);
+
+%% 5. Performance Evaluation (BER and Constellation)
+% Calculate Bit Error Rate (BER)
+[number_of_errors, ber] = biterr(txBits, rxBits);
+
+fprintf('BER = %e\n', ber);
+fprintf('Number of Bits = %d\n', length(txBits));
+fprintf('Number of Errors = %d\n', number_of_errors);
+
+% Display Constellation Diagram
+plotConstellation(rxSymb);
